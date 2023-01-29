@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Document</title>
+</head>
+<body>
+      <div id="error-container"></div>
+      <input id="name" type="text" name="name" placeholder="Enter your name!">
+      <button type="button" name="button" id="button">Login</button>
+
+      <div id="available-rooms">
+
+      </div>
+   <script src="/socket.io/socket.io.js"></script>
+
+   <script>
+      var socket = io();
+      function logIn() {
+         let username = document.getElementById("name");
+         let btn = document.getElementById("button");
+         btn.addEventListener("click", () => {
+            if(username.value){
+               socket.emit("loginUser", { username: username.value })
+            }
+         })
+      }
+      logIn();
+
+      socket.on("userloggedin", (data) => {
+         const user = data.username;
+         const userId = data.userId;
+         socket.on("otherUsers", (data) => {
+            document.body.innerHTML = data.map((other) => {
+               return `
+                  <div data-personId="${other.id}">
+                     <h3>${other.username}</h3>
+                     <button id="enterChat" type="button">chat</button>
+                  </div>
+               `
+            }).join("")
+
+            const chatBtns = document.querySelectorAll("#enterChat");
+            console.log(chatBtns)
+            chatBtns.forEach((btn) => {
+               btn.addEventListener("click", (e) => {
+                  console.log(e.target.parentElement.dataset)
+                  const id = e.target.parentElement.dataset.personid;
+                  socket.emit("chatRoom", {id: id});
+                  document.body.innerHTML = `
+                     <h1>welcome ${user}</h1>
+                     <p id="chatpart"></p>
+                     <input type="text" id="sendmessage" >
+                     <button type="button" id="sendBtn">send message</button>
+                     <div id="displayMessages"></div>
+                  `
+                  socket.on("chatPartner", (data) => {
+                     const otherUserId = data.userId;
+                     const otherUserName = data.username;
+                     const roomid = data.roomid;
+                     document.getElementById("chatpart").innerHTML = `
+                        You are chatting with ${data.username}
+                     `
+
+                     let messageInput = document.getElementById("sendmessage");
+                     document.getElementById("sendBtn").addEventListener("click",() => {
+                        if(messageInput.value){
+                           const data = {
+                              message: messageInput.value,
+                              user: user,
+                              roomid
+                           }
+                           socket.emit("chatMessage", data)
+                        }
+                     })
+                     socket.on("messages", (data) => {
+                        const messages = data.filter((msg) => {
+                           if(msg.roomid === roomid){
+                              return msg;
+                           }
+                        })
+                        document.getElementById("displayMessages").innerHTML = messages.map((roomMsg) => {
+                           return `<p>${roomMsg.user} ${roomMsg.message}</p>`
+                        }).join("")
+                     })
+                  })
+               })
+            })
+         })
+      })
+      socket.on("nouserfound", (data) => {
+         document.getElementById("error-container").innerHTML = data
+      })
+   </script>
+</body>
+</html>
